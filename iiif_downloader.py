@@ -188,9 +188,11 @@ def load_document(url, img_path, args):
         if 'collections' in document.keys():
             for collection in document['collections']:
                 load_document(collection['@id'], img_path + '/' + collection['label'], args)
-        else:
+        elif 'manifests' in document.keys():
             for manifest in document['manifests']:
                 download_iiif_content(manifest['@id'], img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate)
+        else:
+            print(f"Unknown collection type with keys {document.keys()}")
     elif document['@type'] in [ "sc:Manifest", "sc:Sequence", "sc:Canvas"]:
         download_iiif_content(url, img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate)
 
