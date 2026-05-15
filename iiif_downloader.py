@@ -179,6 +179,21 @@ def download_iiif_content(document_url, images_base_path, metadata_file_path, im
 
     print ('=======')
 
+def load_document(url, img_path, args):
+    if not os.path.exists(img_path):
+        os.makedirs(img_path)
+    response = requests.get(url, allow_redirects=True, verify=args.verify_ssl_certificate)
+    document = response.json()
+    if document['@type'] in [ "sc:Collection" ]:
+        if 'collections' in document.keys():
+            for collection in document['collections']:
+                load_document(collection['@id'], img_path + '/' + collection['label'], args)
+        else:
+            for manifest in document['manifests']:
+                download_iiif_content(manifest['@id'], img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate)
+    elif document['@type'] in [ "sc:Manifest", "sc:Sequence", "sc:Canvas"]:
+        download_iiif_content(url, img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate)
+
 def main():
     """ Main method """
     # Parse arguments
@@ -196,13 +211,7 @@ def main():
     if args.metadata_file_path and not os.path.exists(os.path.dirname(args.metadata_file_path)):
         os.makedirs(os.path.dirname(args.metadata_file_path))
 
-    response = requests.get(args.iif_document_url, allow_redirects=True, verify=args.verify_ssl_certificate)
-    document = response.json()
-    if document['@type'] in [ "sc:Collection" ]:
-        for manifest in document['manifests']:
-            download_iiif_content(manifest['@id'], args.images_base_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate)
-    elif document['@type'] in [ "sc:Manifest", "sc:Sequence", "sc:Canvas"]:
-        download_iiif_content(args.iif_document_url, args.images_base_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate)
+    load_document(args.iif_document_url, args.images_base_path, args)
 
 if __name__== "__main__":
     main()
