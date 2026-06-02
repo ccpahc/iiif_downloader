@@ -1,3 +1,4 @@
+#!/bin/python3
 __author__      = 'Ernesto Coto'
 __copyright__   = 'Jan 2020'
 
@@ -7,6 +8,8 @@ import json
 import os
 import re
 import string
+import multiprocessing
+from queue import Queue
 
 import requests
 from PIL import Image
@@ -179,22 +182,37 @@ def download_iiif_content(document_url, images_base_path, metadata_file_path, im
 
     print ('=======')
 
+def download_iiif_content__tuple(t):
+    return download_iiif_content(t[0], t[1], t[2], t[3], t[4])
+
 def load_document(url, img_path, args):
-    if not os.path.exists(img_path):
-        os.makedirs(img_path)
-    response = requests.get(url, allow_redirects=True, verify=args.verify_ssl_certificate)
-    document = response.json()
-    if document['@type'] in [ "sc:Collection" ]:
-        if 'collections' in document.keys():
-            for collection in document['collections']:
-                load_document(collection['@id'], img_path + '/' + collection['label'], args)
-        elif 'manifests' in document.keys():
-            for manifest in document['manifests']:
-                download_iiif_content(manifest['@id'], img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate)
-        else:
-            print(f"Unknown collection type with keys {document.keys()}")
-    elif document['@type'] in [ "sc:Manifest", "sc:Sequence", "sc:Canvas"]:
-        download_iiif_content(url, img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate)
+    document_queue = Queue()
+    document_queue.put((url, ''))
+
+    content_list = []
+    
+    while not document_queue.empty():
+        url, subpath = document_queue.get()
+        fullpath = img_path + subpath
+        os.makedirs(fullpath, exist_ok=True)
+
+        response = requests.get(url, allow_redirects=True, verify=args.verify_ssl_certificate)
+        document = response.json()
+
+        if document['@type'] in [ "sc:Manifest", "sc:Sequence", "sc:Canvas"]:
+            content_list.append((url, fullpath, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate))
+        elif document['@type'] in [ "sc:Collection" ]:
+            if 'manifests' in document.keys():
+                for manifest in document['manifests']:
+                    content_list.append((manifest['@id'], fullpath, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate))
+            elif 'collections' in document.keys():
+                for collection in document['collections']:
+                    document_queue.put((collection['@id'], subpath + '/' + collection['label']))
+            else:
+                print(f"Unknown collection type with keys {document.keys()}")
+
+    pool = multiprocessing.Pool(64)
+    pool.map(download_iiif_content__tuple, content_list)
 
 def main():
     """ Main method """
