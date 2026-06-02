@@ -1,3 +1,4 @@
+#!/bin/python3
 __author__      = 'Ernesto Coto'
 __copyright__   = 'Jan 2020'
 
@@ -7,6 +8,7 @@ import json
 import os
 import re
 import string
+import threading
 
 import requests
 from PIL import Image
@@ -180,6 +182,7 @@ def download_iiif_content(document_url, images_base_path, metadata_file_path, im
     print ('=======')
 
 def load_document(url, img_path, args):
+    threads = []
     if not os.path.exists(img_path):
         os.makedirs(img_path)
     response = requests.get(url, allow_redirects=True, verify=args.verify_ssl_certificate)
@@ -195,6 +198,33 @@ def load_document(url, img_path, args):
             print(f"Unknown collection type with keys {document.keys()}")
     elif document['@type'] in [ "sc:Manifest", "sc:Sequence", "sc:Canvas"]:
         download_iiif_content(url, img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate)
+
+def load_document_multithreaded(url, img_path, args):
+    threads = []
+    if not os.path.exists(img_path):
+        os.makedirs(img_path)
+    response = requests.get(url, allow_redirects=True, verify=args.verify_ssl_certificate)
+    document = response.json()
+    if document['@type'] in [ "sc:Collection" ]:
+        if 'collections' in document.keys():
+            for collection in document['collections']:
+                t = threading.Thread(target=load_document, args=(collection['@id'], img_path + '/' + collection['label'], args))
+                threads.append(t)
+        elif 'manifests' in document.keys():
+            for manifest in document['manifests']:
+                t = threading.Thread(target=download_iiif_content, args=(manifest['@id'], img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate))
+                threads.append(t)
+        else:
+            print(f"Unknown collection type with keys {document.keys()}")
+    elif document['@type'] in [ "sc:Manifest", "sc:Sequence", "sc:Canvas"]:
+        t = threading.Thread(target=download_iiif_content, args=(url, img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate))
+        threads.append(t)
+
+    for t in threads:
+        t.start()
+
+    for t in threads:
+        t.join()
 
 def main():
     """ Main method """
