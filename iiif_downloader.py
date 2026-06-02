@@ -8,7 +8,7 @@ import json
 import os
 import re
 import string
-import threading
+import multiprocessing
 
 import requests
 from PIL import Image
@@ -208,16 +208,16 @@ def load_document_multithreaded(url, img_path, args):
     if document['@type'] in [ "sc:Collection" ]:
         if 'collections' in document.keys():
             for collection in document['collections']:
-                t = threading.Thread(target=load_document, args=(collection['@id'], img_path + '/' + collection['label'], args))
+                t = multiprocessing.Process(target=load_document, args=(collection['@id'], img_path + '/' + collection['label'], args))
                 threads.append(t)
         elif 'manifests' in document.keys():
             for manifest in document['manifests']:
-                t = threading.Thread(target=download_iiif_content, args=(manifest['@id'], img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate))
+                t = multiprocessing.Process(target=download_iiif_content, args=(manifest['@id'], img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate))
                 threads.append(t)
         else:
             print(f"Unknown collection type with keys {document.keys()}")
     elif document['@type'] in [ "sc:Manifest", "sc:Sequence", "sc:Canvas"]:
-        t = threading.Thread(target=download_iiif_content, args=(url, img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate))
+        t = multiprocessing.Process(target=download_iiif_content, args=(url, img_path, args.metadata_file_path, args.image_max_width, args.verify_ssl_certificate))
         threads.append(t)
 
     for t in threads:
