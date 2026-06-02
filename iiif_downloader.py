@@ -243,7 +243,7 @@ def main():
     if args.metadata_file_path and not os.path.exists(os.path.dirname(args.metadata_file_path)):
         os.makedirs(os.path.dirname(args.metadata_file_path))
 
-    load_document(args.iiif_document_url, args.images_base_path, args)
+    load_document_multithreaded(args.iiif_document_url, args.images_base_path, args)
 
 if __name__== "__main__":
     main()
